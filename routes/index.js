@@ -14,6 +14,18 @@ var fMassagePayload = function(source) {
     payload.prize = [];
     payload.registrationStartDate = _.get(source, 'registrationStartDate', new Date()); //": "2016-02-16T17:53:03+00:00",
     payload.reviewType = _.get(source, 'reviewType', 'COMMUNITY');
+    
+    // Get prizes from title
+    // var re = /\$[0-9]+/g;
+    // var prizesFromTitle = title.match(re);
+    // prizesFromTitle.forEach(function(prize, i){
+    //     payload.prize.push({
+    //         "position": i + 1,
+    //         "amount": prize,
+    //         "numberOfPrizes": prizesFromTitle.length
+    //     })
+    // });
+    
     /*
         var re = /^\[((\$\d+),*)+\]/;
         var m;

@@ -130,7 +130,7 @@ router.post('/challenges', function(req, res, next) {
             try {
                 challenge = JSON.parse(body);
                 challenge.success = true;
-                challenge.challengeURL = 'https://www.topcoder.com/challenge-details/' + challenge.id +
+                challenge.challengeURL = config.TC_SITE + '/challenge-details/' + challenge.id +
                     '/?type=develop&noncache=true'
             } catch (e) {
                 challenge = {

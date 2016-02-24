@@ -10,6 +10,7 @@ var fMassagePayload = function(source) {
     payload.projectId = _.get(source, 'projectId', '8455');
     payload.name = title
     payload.requirements = _.get(source, 'body', '');
+    payload.contestCopilotName = 'Unassigned';
     payload.prize = [];
     payload.registrationStartDate = _.get(source, 'registrationStartDate', new Date()); //": "2016-02-16T17:53:03+00:00",
     payload.reviewType = _.get(source, 'reviewType', 'COMMUNITY');
@@ -128,6 +129,7 @@ router.post('/challenges', function(req, res, next) {
 
             try {
                 challenge = JSON.parse(body);
+                challenge.success = true;
                 challenge.challengeURL = 'https://www.topcoder.com/challenge-details/' + challenge.id +
                     '/?type=develop&noncache=true'
             } catch (e) {

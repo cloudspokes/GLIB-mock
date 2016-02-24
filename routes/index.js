@@ -4,6 +4,39 @@ var router = express.Router();
 var config = require('config');
 var request = require('request');
 
+var fMassagePayload = function(source) {
+    var title = _.get(source, 'title', '');
+    var payload = {};
+    payload.projectId = _.get(source, 'projectId', '8455');
+    payload.name = title
+    payload.requirements = _.get(source, 'body', '');
+    payload.prize = [];
+    payload.registrationStartDate = _.get(source, 'registrationStartDate', new Date()); //": "2016-02-16T17:53:03+00:00",
+    payload.reviewType = _.get(source, 'reviewType', 'COMMUNITY');
+    /*
+        var re = /^\[((\$\d+),*)+\]/;
+        var m;
+
+        if ((m = re.exec(title)) !== null) {
+            if (m.index === re.lastIndex) {
+                re.lastIndex++;
+            }
+
+            var aPrizes = eval(m);
+            _.forEach(aPrizes, function(value, key) {
+                payload.prize[payload.prize.length] = {
+                    "position": key,
+                    "amount": value.replace('$', ''),
+                    "numberOfPrizes": aPrizes.length
+                };
+            });
+
+        }
+    */
+
+    return payload;
+};
+
 var fGetAccessToken = function(user, pass, cb) {
     console.log('posting in for accessToken at ', config.APIURL_BASE + config.APIURL_OAUTHACCESS);
     request({
@@ -83,11 +116,8 @@ router.post('/challenges', function(req, res, next) {
     console.log('posting to: ', config.APIURL_BASE + config.APIURL_CHALLENGE);
     console.log(req.body);
     var accessToken = req.get('x-auth-access-token');
-    var challengePayload = {
-        'projectId': _.get(req.body, 'projectId', ''),
-        'name': _.get(req.body, 'name', ''),
-        'requirements': _.get(req.body, 'requirements', '')
-    };
+
+    var challengePayload = fMassagePayload(req.body);
 
     var cb = function(err, httpResponse, body) {
         if (err) {

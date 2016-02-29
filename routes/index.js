@@ -3,49 +3,40 @@ var express = require('express');
 var router = express.Router();
 var config = require('config');
 var request = require('request');
+var moment = require('moment');
 
 var fMassagePayload = function(source) {
     var title = _.get(source, 'title', '');
     var payload = {};
     payload.projectId = _.get(source, 'projectId', '8455');
-    payload.name = title
     payload.requirements = _.get(source, 'body', '');
     payload.contestCopilotName = 'Unassigned';
-    payload.prize = [];
+    payload.prizes = [];
     payload.registrationStartDate = _.get(source, 'registrationStartDate', new Date()); //": "2016-02-16T17:53:03+00:00",
+    payload.registrationStartDate = moment(payload.registrationStartDate).toISOString();
     payload.reviewType = _.get(source, 'reviewType', 'COMMUNITY');
-    
-    // Get prizes from title
-    // var re = /\$[0-9]+/g;
-    // var prizesFromTitle = title.match(re);
-    // prizesFromTitle.forEach(function(prize, i){
-    //     payload.prize.push({
-    //         "position": i + 1,
-    //         "amount": prize,
-    //         "numberOfPrizes": prizesFromTitle.length
-    //     })
-    // });
-    
-    /*
-        var re = /^\[((\$\d+),*)+\]/;
-        var m;
 
-        if ((m = re.exec(title)) !== null) {
-            if (m.index === re.lastIndex) {
-                re.lastIndex++;
-            }
+    //Get prizes from title
+    try {
+        var re = /(\$[0-9]+)(?=.*\])/g;
+        var prizesFromTitle = [];
 
-            var aPrizes = eval(m);
-            _.forEach(aPrizes, function(value, key) {
-                payload.prize[payload.prize.length] = {
-                    "position": key,
-                    "amount": value.replace('$', ''),
-                    "numberOfPrizes": aPrizes.length
-                };
+        prizesFromTitle = title.match(re);
+        _.forEach(prizesFromTitle, function(prize, i) {
+            payload.prizes.push({
+                "position": i + 1,
+                "amount": parseInt(prize.replace('$', '')),
+                "numberOfPrizes": 1 //prizesFromTitle.length
             });
+        });
 
-        }
-    */
+        title = title.replace(/(\$[0-9]+)(?=.*\])/g, '');
+    } catch (e) {
+        console.log(e);
+    }
+
+    payload.name = title
+
 
     return payload;
 };

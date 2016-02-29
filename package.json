@@ -15,6 +15,7 @@
         "serve-favicon": "~2.2.0",
         "config": "~1.19.0",
         "request": "~2.69.0 ",
-        "lodash": "latest"
+        "lodash": "latest",
+        "moment": "~2.11.2"
     }
 }

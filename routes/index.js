@@ -4,12 +4,15 @@ var router = express.Router();
 var config = require('config');
 var request = require('request');
 var moment = require('moment');
+var MarkdownIt = require('markdown-it');
+
 
 var fMassagePayload = function(source) {
+    md = new MarkdownIt();
     var title = _.get(source, 'title', '');
     var payload = {};
     payload.projectId = _.get(source, 'projectId', '8455');
-    payload.requirements = _.get(source, 'body', '');
+    payload.requirements = md.render(_.get(source, 'body', ''));
     payload.contestCopilotName = 'Unassigned';
     payload.prizes = [];
     payload.registrationStartDate = _.get(source, 'registrationStartDate', new Date()); //": "2016-02-16T17:53:03+00:00",

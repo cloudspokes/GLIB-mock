@@ -11,7 +11,7 @@ var fMassagePayload = function(source) {
     md = new MarkdownIt();
     var title = _.get(source, 'title', '');
     var payload = {};
-    payload.projectId = _.get(source, 'projectId', '8455');
+    payload.projectId = _.get(source, 'projectId', '8905');
     payload.requirements = md.render(_.get(source, 'body', ''));
     payload.contestCopilotName = 'Unassigned';
     payload.prizes = [];
@@ -33,7 +33,7 @@ var fMassagePayload = function(source) {
             });
         });
 
-        title = title.replace(/(\$[0-9]+)(?=.*\])/g, '');
+        title = title.replace(/^(\[.*\])/, '');
     } catch (e) {
         console.log(e);
     }

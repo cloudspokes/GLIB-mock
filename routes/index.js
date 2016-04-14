@@ -11,12 +11,14 @@ var fMassagePayload = function(source) {
     md = new MarkdownIt();
     var title = _.get(source, 'title', '');
     var payload = {};
-    payload.projectId = _.get(source, 'tc_project_id', '8905');
+    payload.projectId = _.get(source, 'tc_project_id', (config.TC_ENV === 'dev') ? '6370' : '8905');
     payload.requirements = md.render(_.get(source, 'body', ''));
     payload.contestCopilotName = 'Unassigned';
     payload.prizes = [];
     payload.registrationStartDate = _.get(source, 'registrationStartDate', new Date()); //": "2016-02-16T17:53:03+00:00",
     payload.registrationStartDate = moment(payload.registrationStartDate).toISOString();
+    payload.registrationEndDate = _.get(source, 'registrationEndDate', new Date()); //": "2016-02-16T17:53:03+00:00",
+    payload.registrationEndDate = moment(payload.registrationEndDate).add(7, 'days').toISOString();
     payload.reviewType = _.get(source, 'reviewType', 'COMMUNITY');
 
     //Get prizes from title
@@ -34,6 +36,19 @@ var fMassagePayload = function(source) {
         });
 
         title = title.replace(/^(\[.*\])/, '');
+        /*
+        DESIGN:DESIGN_FIRST_2_FINISH
+        DESIGN:WEB_DESIGNS
+        DESIGN:WIDGET_OR_MOBILE_SCREEN_DESIGN
+        DEVELOP:CODE
+        DEVELOP:FIRST_2_FINISH
+        */
+
+        if (payload.prizes.length === 1) {
+            //assume f2f with more
+            payload.track = 'DEVELOP';
+            payload.subTrack = 'FIRST_2_FINISH';
+        }
     } catch (e) {
         console.log(e);
     }

@@ -6,6 +6,8 @@ var request = require('request');
 var moment = require('moment');
 var MarkdownIt = require('markdown-it');
 
+var ChallengeObj = require('../model/Challenge.js')
+
 
 var fMassagePayload = function(source) {
     md = new MarkdownIt();
@@ -45,7 +47,7 @@ var fMassagePayload = function(source) {
         */
 
         if (payload.prizes.length === 1) {
-            //assume f2f with more
+            //assume f2f with only 1
             payload.track = 'DEVELOP';
             payload.subTrack = 'FIRST_2_FINISH';
         }
@@ -55,6 +57,82 @@ var fMassagePayload = function(source) {
 
     payload.name = title
 
+
+    return payload;
+};
+
+var fMassageV3Payload = function(source) {
+    md = new MarkdownIt();
+    var title = _.get(source, 'title', '');
+    var payload = new ChallengeObj();
+    payload.tcDirectProjectId = _.get(source, 'tc_project_id', (config.TC_ENV === 'dev') ? '6370' : '8905');
+    payload.contestCopilotName = 'Unassigned';
+    payload.hasMulti = false;
+    payload.specReviewStartMode = "now";
+    payload.projectHeader.tcDirectProjectId = payload.tcDirectProjectId;
+    payload.projectHeader.projectSpec.detailedRequirements = md.render(_.get(source, 'body', ''));
+    payload.projectHeader.properties["Review Type"] = _.get(source, 'reviewType', 'COMMUNITY');
+    payload.projectHeader.prizes = [];
+
+    //CWD-- wtf to do here??
+    payload.registrationStartDate = _.get(source, 'registrationStartDate', new Date()); //": "2016-02-16T17:53:03+00:00",
+    payload.registrationStartDate = moment(payload.registrationStartDate).toISOString();
+    payload.registrationEndDate = _.get(source, 'registrationEndDate', new Date()); //": "2016-02-16T17:53:03+00:00",
+    payload.registrationEndDate = moment(payload.registrationEndDate).add(7, 'days').toISOString();
+    //CWD--
+
+    //Get prizes from title
+    try {
+        var re = /(\$[0-9]+)(?=.*\])/g;
+        var prizesFromTitle = [];
+
+        prizesFromTitle = title.match(re);
+        _.forEach(prizesFromTitle, function(prize, i) {
+            payload.projectHeader.prizes.push({
+                "place": i + 1,
+                "prizeAmount": parseInt(prize.replace('$', '')),
+                "prizeType": {
+                    "id": 15,
+                    "description": "Contest Prize"
+                },
+                "numberOfSubmissions": 1
+            });
+        });
+
+        title = title.replace(/^(\[.*\])/, '');
+        /*
+        DESIGN:DESIGN_FIRST_2_FINISH
+        DESIGN:WEB_DESIGNS
+        DESIGN:WIDGET_OR_MOBILE_SCREEN_DESIGN
+        DEVELOP:CODE
+        DEVELOP:FIRST_2_FINISH
+        */
+
+        payload.projectHeader.projectCategory = {
+            "id": 39, //CWD-- 38
+            "name": "CODE", //CWD-- First2Finish
+            "projectType": {
+                "id": 2,
+                "name": "Application"
+            }
+        };
+
+        if (payload.projectHeader.prizes.length === 1) {
+            //assume f2f with only 1
+            payload.projectHeader.projectCategory = {
+                "id": 38, //CWD-- 38
+                "name": "First2Finish", //CWD--
+                "projectType": {
+                    "id": 2,
+                    "name": "Application"
+                }
+            };
+        }
+    } catch (e) {
+        console.log(e);
+    }
+
+    payload.projectHeader.tcDirectProjectName = title
 
     return payload;
 };
@@ -185,6 +263,44 @@ router.post('/challenges', function(req, res, next) {
         });
     }
 });
+
+
+router.post('/v3/challenges', function(req, res, next) {
+    var accessToken = req.headers.authorization;
+
+    if (accessToken) {
+        console.log('I gots me an accessToken!', accessToken);
+        var payload = fMassageV3Payload(req.body);
+        console.log('sending over payload:', payload);
+
+        request({
+                method: 'POST',
+                url: config.APIURL_BASE + config.APIURL_CHALLENGE,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': accessToken
+                },
+                body: JSON.stringify(payload)
+            },
+            function(err, httpResponse, body) {
+                //console.log(httpResponse);
+                if (err) {
+                    console.log(err);
+                    res.status(500).json(JSON.parse(body));
+                } else {
+                    console.log('challenge created ', body);
+                    res.json(JSON.parse(body));
+                }
+            });
+    } else {
+        console.log('no accessToken present');
+        res.status(500).json({
+            err: 'no accessToken present'
+        })
+    }
+
+});
+
 
 router.post('/oauth/access_token', function(req, res, next) {
     console.log('sending over to ' + config.APIURL_BASE + config.APIURL_OAUTHACCESS, JSON.stringify(req.body));

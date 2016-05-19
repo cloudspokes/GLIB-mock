@@ -17,6 +17,7 @@
         "request": "~2.69.0 ",
         "lodash": "latest",
         "moment": "~2.11.2",
-        "markdown-it": "~6.0.0"
+        "markdown-it": "~6.0.0",
+        "jwt-decode": "~2.0.1"
     }
 }

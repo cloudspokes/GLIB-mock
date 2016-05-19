@@ -3,9 +3,10 @@ var express = require('express');
 var router = express.Router();
 var config = require('config');
 var request = require('request');
+request.debug = true;
 var moment = require('moment');
 var MarkdownIt = require('markdown-it');
-
+var jwtDecode = require('jwt-decode')
 var ChallengeObj = require('../model/Challenge.js')
 
 
@@ -61,10 +62,14 @@ var fMassagePayload = function(source) {
     return payload;
 };
 
-var fMassageV3Payload = function(source) {
+var fMassageV3Payload = function(source, accessToken) {
     md = new MarkdownIt();
     var title = _.get(source, 'title', '');
     var payload = new ChallengeObj();
+    payload.jwtToken = accessToken;
+    var token = jwtDecode(accessToken);
+    console.log(token);
+    payload.userId = token.userId;
     payload.tcDirectProjectId = _.get(source, 'tc_project_id', (config.TC_ENV === 'dev') ? '6370' : '8905');
     payload.contestCopilotName = 'Unassigned';
     payload.hasMulti = false;
@@ -74,11 +79,11 @@ var fMassageV3Payload = function(source) {
     payload.projectHeader.properties["Review Type"] = _.get(source, 'reviewType', 'COMMUNITY');
     payload.projectHeader.prizes = [];
 
-    //CWD-- wtf to do here??
-    payload.registrationStartDate = _.get(source, 'registrationStartDate', new Date()); //": "2016-02-16T17:53:03+00:00",
-    payload.registrationStartDate = moment(payload.registrationStartDate).toISOString();
-    payload.registrationEndDate = _.get(source, 'registrationEndDate', new Date()); //": "2016-02-16T17:53:03+00:00",
-    payload.registrationEndDate = moment(payload.registrationEndDate).add(7, 'days').toISOString();
+
+    payload.assetDTO.productionDate = _.get(source, 'registrationStartDate', new Date());
+    payload.assetDTO.productionDate = moment(payload.assetDTO.productionDate).toISOString();
+    payload.endDate = _.get(source, 'registrationEndDate', new Date()); //": "2016-02-16T17:53:03+00:00",
+    payload.endDate = moment(payload.endDate).add(7, 'days').toISOString();
     //CWD--
 
     //Get prizes from title
@@ -132,7 +137,7 @@ var fMassageV3Payload = function(source) {
         console.log(e);
     }
 
-    payload.projectHeader.tcDirectProjectName = title
+    payload.projectHeader.tcDirectProjectName = payload.assetDTO.name = title;
 
     return payload;
 };
@@ -182,7 +187,7 @@ router.get('/', function(req, res, next) {
     });
 });
 
-router.get('/challenges', function(req, res, next) {
+router.get('/challenges-santosh', function(req, res, next) {
     request({
         method: 'GET',
         url: config.APIURL_BASE + config.APIURL_CHALLENGE,
@@ -212,7 +217,7 @@ router.post('/', function(req, res, next) {
     });
 });
 
-router.post('/challenges', function(req, res, next) {
+router.post('/challenges-santosh', function(req, res, next) {
     console.log('posting to: ', config.APIURL_BASE + config.APIURL_CHALLENGE);
     console.log(req.body);
     var accessToken = req.get('x-auth-access-token');
@@ -265,20 +270,22 @@ router.post('/challenges', function(req, res, next) {
 });
 
 
-router.post('/v3/challenges', function(req, res, next) {
+router.post('/challenges', function(req, res, next) {
     var accessToken = req.headers.authorization;
 
     if (accessToken) {
+        accessToken = accessToken.replace('Bearer ', '');
         console.log('I gots me an accessToken!', accessToken);
-        var payload = fMassageV3Payload(req.body);
+        var payload = fMassageV3Payload(req.body, accessToken);
         console.log('sending over payload:', payload);
 
         request({
                 method: 'POST',
                 url: config.APIURL_BASE + config.APIURL_CHALLENGE,
                 headers: {
+                    'cache-control': 'no-cache',
                     'Content-Type': 'application/json',
-                    'Authorization': accessToken
+                    'authorization': 'Bearer ' + accessToken
                 },
                 body: JSON.stringify(payload)
             },
@@ -289,7 +296,21 @@ router.post('/v3/challenges', function(req, res, next) {
                     res.status(500).json(JSON.parse(body));
                 } else {
                     console.log('challenge created ', body);
-                    res.json(JSON.parse(body));
+
+                    var challenge = {};
+
+                    try {
+                        challenge = JSON.parse(body);
+                        challenge.challengeURL = config.TC_SITE + '/challenge-details/' + challenge.projectId +
+                            '/?type=develop&noncache=true'
+                    } catch (e) {
+                        challenge = {
+                            'error': body
+                        };
+                    }
+
+                    console.log(challenge);
+                    res.json(challenge);
                 }
             });
     } else {
@@ -312,6 +333,9 @@ router.post('/oauth/access_token', function(req, res, next) {
             console.log(err, httpResponse);
             res.status(500).json(body);
         } else {
+
+
+
             console.log(body);
             res.json(JSON.parse(body));
         }

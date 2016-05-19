@@ -3,11 +3,10 @@ var defaultChallenge = {
     "projectId": -1,
     "tcDirectProjectId": -1,
     "competitionType": "SOFTWARE", //SOFTWARE, STUDIO, ALGORITHM
-    /*    "assetDTO": {
-            "name": "Test Tony - Lambda Create 4",
-            "productionDate": "2016-03-05T09:00:00-04"
-        },
-    */
+    "assetDTO": {
+        "name": "",
+        "productionDate": "" //2016-03-05T09:00:00-04
+    },
     "projectHeader": {
         "id": -1,
         "tcDirectProjectId": -1,

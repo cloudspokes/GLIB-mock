@@ -3,8 +3,11 @@ var express = require('express');
 var router = express.Router();
 var config = require('config');
 var request = require('request');
+request.debug = true;
 var moment = require('moment');
 var MarkdownIt = require('markdown-it');
+var jwtDecode = require('jwt-decode')
+var ChallengeObj = require('../model/Challenge.js')
 
 
 var fMassagePayload = function(source) {
@@ -45,7 +48,7 @@ var fMassagePayload = function(source) {
         */
 
         if (payload.prizes.length === 1) {
-            //assume f2f with more
+            //assume f2f with only 1
             payload.track = 'DEVELOP';
             payload.subTrack = 'FIRST_2_FINISH';
         }
@@ -55,6 +58,86 @@ var fMassagePayload = function(source) {
 
     payload.name = title
 
+
+    return payload;
+};
+
+var fMassageV3Payload = function(source, accessToken) {
+    md = new MarkdownIt();
+    var title = _.get(source, 'title', '');
+    var payload = new ChallengeObj();
+    payload.jwtToken = accessToken;
+    var token = jwtDecode(accessToken);
+    console.log(token);
+    payload.userId = token.userId;
+    payload.tcDirectProjectId = _.get(source, 'tc_project_id', (config.TC_ENV === 'dev') ? '6370' : '8905');
+    payload.contestCopilotName = 'Unassigned';
+    payload.hasMulti = false;
+    payload.specReviewStartMode = "now";
+    payload.projectHeader.tcDirectProjectId = payload.tcDirectProjectId;
+    payload.projectHeader.projectSpec.detailedRequirements = md.render(_.get(source, 'body', ''));
+    payload.projectHeader.properties["Review Type"] = _.get(source, 'reviewType', 'COMMUNITY');
+    payload.projectHeader.prizes = [];
+
+
+    payload.assetDTO.productionDate = _.get(source, 'registrationStartDate', new Date());
+    payload.assetDTO.productionDate = moment(payload.assetDTO.productionDate).toISOString();
+    payload.endDate = _.get(source, 'registrationEndDate', new Date()); //": "2016-02-16T17:53:03+00:00",
+    payload.endDate = moment(payload.endDate).add(7, 'days').toISOString();
+    //CWD--
+
+    //Get prizes from title
+    try {
+        var re = /(\$[0-9]+)(?=.*\])/g;
+        var prizesFromTitle = [];
+
+        prizesFromTitle = title.match(re);
+        _.forEach(prizesFromTitle, function(prize, i) {
+            payload.projectHeader.prizes.push({
+                "place": i + 1,
+                "prizeAmount": parseInt(prize.replace('$', '')),
+                "prizeType": {
+                    "id": 15,
+                    "description": "Contest Prize"
+                },
+                "numberOfSubmissions": 1
+            });
+        });
+
+        title = title.replace(/^(\[.*\])/, '');
+        /*
+        DESIGN:DESIGN_FIRST_2_FINISH
+        DESIGN:WEB_DESIGNS
+        DESIGN:WIDGET_OR_MOBILE_SCREEN_DESIGN
+        DEVELOP:CODE
+        DEVELOP:FIRST_2_FINISH
+        */
+
+        payload.projectHeader.projectCategory = {
+            "id": 39, //CWD-- 38
+            "name": "CODE", //CWD-- First2Finish
+            "projectType": {
+                "id": 2,
+                "name": "Application"
+            }
+        };
+
+        if (payload.projectHeader.prizes.length === 1) {
+            //assume f2f with only 1
+            payload.projectHeader.projectCategory = {
+                "id": 38, //CWD-- 38
+                "name": "First2Finish", //CWD--
+                "projectType": {
+                    "id": 2,
+                    "name": "Application"
+                }
+            };
+        }
+    } catch (e) {
+        console.log(e);
+    }
+
+    payload.projectHeader.tcDirectProjectName = payload.assetDTO.name = title;
 
     return payload;
 };
@@ -104,7 +187,7 @@ router.get('/', function(req, res, next) {
     });
 });
 
-router.get('/challenges', function(req, res, next) {
+router.get('/challenges-santosh', function(req, res, next) {
     request({
         method: 'GET',
         url: config.APIURL_BASE + config.APIURL_CHALLENGE,
@@ -134,7 +217,7 @@ router.post('/', function(req, res, next) {
     });
 });
 
-router.post('/challenges', function(req, res, next) {
+router.post('/challenges-santosh', function(req, res, next) {
     console.log('posting to: ', config.APIURL_BASE + config.APIURL_CHALLENGE);
     console.log(req.body);
     var accessToken = req.get('x-auth-access-token');
@@ -186,6 +269,60 @@ router.post('/challenges', function(req, res, next) {
     }
 });
 
+
+router.post('/challenges', function(req, res, next) {
+    var accessToken = req.headers.authorization;
+
+    if (accessToken) {
+        accessToken = accessToken.replace('Bearer ', '');
+        console.log('I gots me an accessToken!', accessToken);
+        var payload = fMassageV3Payload(req.body, accessToken);
+        console.log('sending over payload:', payload);
+
+        request({
+                method: 'POST',
+                url: config.APIURL_BASE + config.APIURL_CHALLENGE,
+                headers: {
+                    'cache-control': 'no-cache',
+                    'Content-Type': 'application/json',
+                    'authorization': 'Bearer ' + accessToken
+                },
+                body: JSON.stringify(payload)
+            },
+            function(err, httpResponse, body) {
+                //console.log(httpResponse);
+                if (err) {
+                    console.log(err);
+                    res.status(500).json(JSON.parse(body));
+                } else {
+                    console.log('challenge created ', body);
+
+                    var challenge = {};
+
+                    try {
+                        challenge = JSON.parse(body);
+                        challenge.challengeURL = config.TC_SITE + '/challenge-details/' + challenge.projectId +
+                            '/?type=develop&noncache=true'
+                    } catch (e) {
+                        challenge = {
+                            'error': body
+                        };
+                    }
+
+                    console.log(challenge);
+                    res.json(challenge);
+                }
+            });
+    } else {
+        console.log('no accessToken present');
+        res.status(500).json({
+            err: 'no accessToken present'
+        })
+    }
+
+});
+
+
 router.post('/oauth/access_token', function(req, res, next) {
     console.log('sending over to ' + config.APIURL_BASE + config.APIURL_OAUTHACCESS, JSON.stringify(req.body));
     var user = (req.body && req.body.x_auth_username) ? req.body.x_auth_username : '';
@@ -196,6 +333,9 @@ router.post('/oauth/access_token', function(req, res, next) {
             console.log(err, httpResponse);
             res.status(500).json(body);
         } else {
+
+
+
             console.log(body);
             res.json(JSON.parse(body));
         }

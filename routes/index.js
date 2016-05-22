@@ -70,7 +70,7 @@ var fMassageV3Payload = function(source, accessToken) {
     var token = jwtDecode(accessToken);
     console.log(token);
     payload.userId = token.userId;
-    payload.tcDirectProjectId = _.get(source, 'tc_project_id', (config.TC_ENV === 'dev') ? '6370' : '8905');
+    payload.tcDirectProjectId = _.get(source, 'tc_project_id', (config.TC_ENV === 'dev') ? '10139' : '8905');
     payload.contestCopilotName = 'Unassigned';
     payload.hasMulti = false;
     payload.specReviewStartMode = "now";
@@ -137,7 +137,8 @@ var fMassageV3Payload = function(source, accessToken) {
         console.log(e);
     }
 
-    payload.projectHeader.tcDirectProjectName = payload.assetDTO.name = title;
+    payload.projectHeader.tcDirectProjectName = payload.assetDTO.name = payload.projectHeader.properties[
+        "Project Name"] = title;
 
     return payload;
 };

@@ -13,7 +13,7 @@ var defaultChallenge = {
         "projectSpec": {
             "projectSpecId": 0,
             "detailedRequirements": "These are the requirements.",
-            "finalSubmissionGuidelines": "guidelines go here."
+            "finalSubmissionGuidelines": "- Ensure good test coverage on all modules\n- Upload documentation for how to run your submission\n- Upload all your source code as a zip for review\n- Winner will be required to submit a pull request with their winning code. "
         },
         /*
         "projectMMSpecification": {

@@ -75,7 +75,11 @@ var fMassageV3Payload = function(source, accessToken) {
     payload.hasMulti = false;
     payload.specReviewStartMode = "now";
     payload.projectHeader.tcDirectProjectId = payload.tcDirectProjectId;
-    payload.projectHeader.projectSpec.detailedRequirements = md.render(_.get(source, 'body', ''));
+    var reqs = _.get(source, 'body', '');
+    reqs += '\n\n#### Source: [Github Issue #' + source.number + '](' + source.html_url + ')';
+    payload.projectHeader.projectSpec.detailedRequirements = md.render(reqs);
+    payload.projectHeader.projectSpec.finalSubmissionGuidelines = md.render(_.get(source, 'submissionGuidelies',
+        payload.projectHeader.projectSpec.finalSubmissionGuidelines));
     payload.projectHeader.properties["Review Type"] = _.get(source, 'reviewType', 'COMMUNITY');
     payload.projectHeader.prizes = [];
 

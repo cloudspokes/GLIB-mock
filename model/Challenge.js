@@ -1,3 +1,5 @@
+var _ = require('lodash');
+
 var defaultChallenge = {
     //    "userId": 8547899,
     "projectId": -1,
@@ -55,7 +57,8 @@ var defaultChallenge = {
             "Spec Review Cost": "0",
             //            "Cost Level": "B",
             //            "Copilot Cost": "600",
-            "Review Type": "COMMUNITY"
+            "Review Type": "COMMUNITY",
+            "ChallengeOriginator": "GLIB-"
         },
         "projectCategory": {
             "id": 39, //CWD-- 38
@@ -81,6 +84,6 @@ var defaultChallenge = {
     "hasMulti": false
 };
 
-module.exports = function() {
-    return defaultChallenge;
+exports = module.exports = function() {
+    return _.cloneDeep(defaultChallenge);
 };

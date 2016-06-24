@@ -66,9 +66,12 @@ var fMassageV3Payload = function(source, accessToken) {
     md = new MarkdownIt();
     var title = _.get(source, 'title', '');
     var payload = new ChallengeObj();
+    console.log(payload);
     payload.jwtToken = accessToken;
     var token = jwtDecode(accessToken);
     console.log(token);
+    payload.projectHeader.properties.ChallengeOriginator = payload.projectHeader.properties.ChallengeOriginator +
+        'Github';
     payload.userId = token.userId;
     payload.tcDirectProjectId = _.get(source, 'tc_project_id', (config.TC_ENV === 'dev') ? '10139' : '8905');
     payload.contestCopilotName = 'Unassigned';
@@ -154,6 +157,8 @@ var fMassageV3PayloadGitlab = function(source, accessToken) {
     payload.jwtToken = accessToken;
     var token = jwtDecode(accessToken);
     console.log(token);
+    payload.projectHeader.properties.ChallengeOriginator = payload.projectHeader.properties.ChallengeOriginator +
+        'Gitlab';
     payload.userId = token.userId;
     payload.tcDirectProjectId = _.get(source, 'tc_project_id', (config.TC_ENV === 'dev') ? '10139' : '8905');
     payload.contestCopilotName = 'Unassigned';

@@ -23,7 +23,6 @@ var fMassagePayload = function(source) {
     payload.registrationEndDate = _.get(source, 'registrationEndDate', new Date()); //": "2016-02-16T17:53:03+00:00",
     payload.registrationEndDate = moment(payload.registrationEndDate).add(7, 'days').toISOString();
     payload.reviewType = _.get(source, 'reviewType', 'COMMUNITY');
-
     //Get prizes from title
     try {
         var re = /(\$[0-9]+)(?=.*\])/g;
@@ -56,7 +55,7 @@ var fMassagePayload = function(source) {
         console.log(e);
     }
 
-    payload.name = title
+    payload.name = title;
 
 
     return payload;
@@ -79,7 +78,41 @@ var fMassageV3Payload = function(source, accessToken) {
     reqs += '\n\n#### Source: [Github Issue #' + source.number + '](' + source.html_url + ')';
     payload.projectHeader.projectSpec.detailedRequirements = md.render(reqs);
     payload.projectHeader.projectSpec.finalSubmissionGuidelines = md.render(_.get(source, 'submissionGuidelies',
-        payload.projectHeader.projectSpec.finalSubmissionGuidelines));
+      payload.projectHeader.projectSpec.finalSubmissionGuidelines));
+    var guides = [];
+
+    var body = _.get(source, 'body', '');
+    var submissionTag = '### Submissions:';
+    var startIndex = body.indexOf(submissionTag);
+    if(startIndex==-1){
+        guides.push('Ensure good test coverage on all modules');
+        guides.push('Upload documentation for how to run your submission');
+        guides.push('Upload all your source code as a zip for review');
+        guides.push('Winner will be required to submit a pull request with their winning code.');
+    }else{
+        var nextIndex = startIndex+submissionTag.length;
+        var endIndex = body.indexOf('###', nextIndex);
+        if(endIndex===-1){
+            guides.push(body.substring(nextIndex));
+        }else{
+            guides.push(body.substring(nextIndex, endIndex));
+        }
+    }
+    var repositoryTag = '### Repository:';
+    var repositoryStartIndex = body.indexOf(repositoryTag);
+    if(repositoryStartIndex!=-1){
+        guides.push('The repository for this challenge can be found [here](');
+        var repositoryNextIndex = repositoryStartIndex+repositoryTag.length;
+        var repositoryEndIndex = body.indexOf('###', repositoryNextIndex);
+        if(repositoryEndIndex===-1){
+            guides.push(body.substring(repositoryNextIndex));
+        }else{
+            guides.push(body.substring(repositoryNextIndex, repositoryEndIndex));
+        }
+
+        guides.push(')')
+    }
+    payload.submission =  md.render(guides.join('\n'));
     payload.projectHeader.properties["Review Type"] = _.get(source, 'reviewType', 'COMMUNITY');
     payload.projectHeader.prizes = [];
 
@@ -149,8 +182,7 @@ var fMassageV3Payload = function(source, accessToken) {
 
 var fGetAccessToken = function(user, pass, cb) {
     console.log('posting in for accessToken at ', config.APIURL_BASE + config.APIURL_OAUTHACCESS);
-    request({
-            method: 'POST',
+    request.post({
             url: config.APIURL_BASE + config.APIURL_OAUTHACCESS,
             headers: {
                 'Content-Type': 'application/json',
@@ -172,8 +204,7 @@ var fCreateChallenges = function(accessToken, challengePayload, cb) {
         'x-auth-access-token': accessToken
     });
 
-    request({
-            method: 'POST',
+    request.post({
             url: config.APIURL_BASE + config.APIURL_CHALLENGE,
             headers: {
                 'Content-Type': 'application/json',
@@ -193,13 +224,12 @@ router.get('/', function(req, res, next) {
 });
 
 router.get('/challenges-santosh', function(req, res, next) {
-    request({
-        method: 'GET',
+    request.get({
         url: config.APIURL_BASE + config.APIURL_CHALLENGE,
         headers: {
             'Content-Type': 'application/json',
-            'x-api-key': config.XAPIKEY,
-        },
+            'x-api-key': config.XAPIKEY
+        }
     }, function(err, httpResponse, body) {
         if (err) {
             console.log(err);
@@ -224,14 +254,12 @@ router.post('/', function(req, res, next) {
 
 router.post('/challenges-santosh', function(req, res, next) {
     console.log('posting to: ', config.APIURL_BASE + config.APIURL_CHALLENGE);
-    console.log(req.body);
+    console.log(req.get('content-type'));
     var accessToken = req.get('x-auth-access-token');
 
     var challengePayload = fMassagePayload(req.body);
-
     var cb = function(err, httpResponse, body) {
         if (err) {
-            console.log(err);
             res.status(500).json(body);
         } else {
             var challenge = {};
@@ -246,8 +274,6 @@ router.post('/challenges-santosh', function(req, res, next) {
                     'error': body
                 };
             }
-
-            console.log(challenge);
             res.json(challenge);
         }
     };
@@ -265,7 +291,6 @@ router.post('/challenges-santosh', function(req, res, next) {
                 console.log(err);
                 res.status(500).json(body);
             } else {
-                console.log(body);
                 accessToken = JSON.parse(body).x_auth_access_token;
                 console.log('I gots me an accessToken!', accessToken);
                 fCreateChallenges(accessToken, challengePayload, cb);
@@ -282,10 +307,8 @@ router.post('/challenges', function(req, res, next) {
         accessToken = accessToken.replace('Bearer ', '');
         console.log('I gots me an accessToken!', accessToken);
         var payload = fMassageV3Payload(req.body, accessToken);
-        console.log('sending over payload:', payload);
-
-        request({
-                method: 'POST',
+        console.log('sending over payload:', JSON.stringify(payload, null, 3));
+        request.post({
                 url: config.APIURL_BASE + config.APIURL_CHALLENGE,
                 headers: {
                     'cache-control': 'no-cache',
@@ -295,7 +318,6 @@ router.post('/challenges', function(req, res, next) {
                 body: JSON.stringify(payload)
             },
             function(err, httpResponse, body) {
-                //console.log(httpResponse);
                 if (err) {
                     console.log(err);
                     res.status(500).json(JSON.parse(body));

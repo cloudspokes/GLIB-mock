@@ -23,7 +23,6 @@ var fMassagePayload = function(source) {
     payload.registrationEndDate = _.get(source, 'registrationEndDate', new Date()); //": "2016-02-16T17:53:03+00:00",
     payload.registrationEndDate = moment(payload.registrationEndDate).add(7, 'days').toISOString();
     payload.reviewType = _.get(source, 'reviewType', 'COMMUNITY');
-
     //Get prizes from title
     try {
         var re = /(\$[0-9]+)(?=.*\])/g;
@@ -56,7 +55,7 @@ var fMassagePayload = function(source) {
         console.log(e);
     }
 
-    payload.name = title
+    payload.name = title;
 
 
     return payload;
@@ -66,9 +65,12 @@ var fMassageV3Payload = function(source, accessToken) {
     md = new MarkdownIt();
     var title = _.get(source, 'title', '');
     var payload = new ChallengeObj();
+    console.log(payload);
     payload.jwtToken = accessToken;
     var token = jwtDecode(accessToken);
     console.log(token);
+    payload.projectHeader.properties.ChallengeOriginator = payload.projectHeader.properties.ChallengeOriginator +
+        'Github';
     payload.userId = token.userId;
     payload.tcDirectProjectId = _.get(source, 'tc_project_id', (config.TC_ENV === 'dev') ? '10139' : '8905');
     payload.contestCopilotName = 'Unassigned';
@@ -79,7 +81,165 @@ var fMassageV3Payload = function(source, accessToken) {
     reqs += '\n\n#### Source: [Github Issue #' + source.number + '](' + source.html_url + ')';
     payload.projectHeader.projectSpec.detailedRequirements = md.render(reqs);
     payload.projectHeader.projectSpec.finalSubmissionGuidelines = md.render(_.get(source, 'submissionGuidelies',
-        payload.projectHeader.projectSpec.finalSubmissionGuidelines));
+      payload.projectHeader.projectSpec.finalSubmissionGuidelines));
+    var guides = [];
+
+    var body = _.get(source, 'body', '');
+    var submissionTag = '### Submissions:';
+    var startIndex = body.indexOf(submissionTag);
+    if(startIndex==-1){
+        guides.push('Ensure good test coverage on all modules');
+        guides.push('Upload documentation for how to run your submission');
+        guides.push('Upload all your source code as a zip for review');
+        guides.push('Winner will be required to submit a pull request with their winning code.');
+    }else{
+        var nextIndex = startIndex+submissionTag.length;
+        var endIndex = body.indexOf('###', nextIndex);
+        if(endIndex===-1){
+            guides.push(body.substring(nextIndex));
+        }else{
+            guides.push(body.substring(nextIndex, endIndex));
+        }
+    }
+    var repositoryTag = '### Repository:';
+    var repositoryStartIndex = body.indexOf(repositoryTag);
+    if(repositoryStartIndex!=-1){
+        guides.push('The repository for this challenge can be found [here](');
+        var repositoryNextIndex = repositoryStartIndex+repositoryTag.length;
+        var repositoryEndIndex = body.indexOf('###', repositoryNextIndex);
+        if(repositoryEndIndex===-1){
+            guides.push(body.substring(repositoryNextIndex));
+        }else{
+            guides.push(body.substring(repositoryNextIndex, repositoryEndIndex));
+        }
+
+        guides.push(')')
+    }
+    payload.submission =  md.render(guides.join('\n'));
+
+    payload.projectHeader.properties["Review Type"] = _.get(source, 'reviewType', 'COMMUNITY');
+    payload.projectHeader.prizes = [];
+
+
+    payload.assetDTO.productionDate = _.get(source, 'registrationStartDate', new Date());
+    payload.assetDTO.productionDate = moment(payload.assetDTO.productionDate).toISOString();
+    payload.endDate = _.get(source, 'registrationEndDate', new Date()); //": "2016-02-16T17:53:03+00:00",
+    payload.endDate = moment(payload.endDate).add(7, 'days').toISOString();
+    //CWD--
+
+    //Get prizes from title
+    try {
+        var re = /(\$[0-9]+)(?=.*\])/g;
+        var prizesFromTitle = [];
+
+        prizesFromTitle = title.match(re);
+        _.forEach(prizesFromTitle, function(prize, i) {
+            payload.projectHeader.prizes.push({
+                "place": i + 1,
+                "prizeAmount": parseInt(prize.replace('$', '')),
+                "prizeType": {
+                    "id": 15,
+                    "description": "Contest Prize"
+                },
+                "numberOfSubmissions": 1
+            });
+        });
+
+        title = title.replace(/^(\[.*\])/, '');
+        /*
+         DESIGN:DESIGN_FIRST_2_FINISH
+         DESIGN:WEB_DESIGNS
+         DESIGN:WIDGET_OR_MOBILE_SCREEN_DESIGN
+         DEVELOP:CODE
+         DEVELOP:FIRST_2_FINISH
+         */
+
+        payload.projectHeader.projectCategory = {
+            "id": 39, //CWD-- 38
+            "name": "CODE", //CWD-- First2Finish
+            "projectType": {
+                "id": 2,
+                "name": "Application"
+            }
+        };
+
+        if (payload.projectHeader.prizes.length === 1) {
+            //assume f2f with only 1
+            payload.projectHeader.projectCategory = {
+                "id": 38, //CWD-- 38
+                "name": "First2Finish", //CWD--
+                "projectType": {
+                    "id": 2,
+                    "name": "Application"
+                }
+            };
+        }
+    } catch (e) {
+        console.log(e);
+    }
+
+    payload.projectHeader.tcDirectProjectName = payload.assetDTO.name = payload.projectHeader.properties[
+      "Project Name"] = title;
+
+    return payload;
+};
+
+var fMassageV3PayloadGitlab = function(source, accessToken) {
+    md = new MarkdownIt();
+    var title = _.get(source, 'title', '');
+    var payload = new ChallengeObj();
+    payload.jwtToken = accessToken;
+    var token = jwtDecode(accessToken);
+    console.log(token);
+    payload.projectHeader.properties.ChallengeOriginator = payload.projectHeader.properties.ChallengeOriginator +
+      'Gitlab';
+    payload.userId = token.userId;
+    payload.tcDirectProjectId = _.get(source, 'tc_project_id', (config.TC_ENV === 'dev') ? '10139' : '8905');
+    payload.contestCopilotName = 'Unassigned';
+    payload.hasMulti = false;
+    payload.specReviewStartMode = "now";
+    payload.projectHeader.tcDirectProjectId = payload.tcDirectProjectId;
+    var reqs = _.get(source, 'description', '');
+    reqs += '\n\n#### Source: [Gitlab Issue #' + source
+        .iid + '](' + 'http://gitlab.com' + ')'; //CWD-- can't get from payload
+    payload.projectHeader.projectSpec.detailedRequirements = md.render(reqs);
+    payload.projectHeader.projectSpec.finalSubmissionGuidelines = md.render(_.get(source, 'submissionGuidelines',
+      payload.projectHeader.projectSpec.finalSubmissionGuidelines));
+    var guides = [];
+
+    var body = _.get(source, 'body', '');
+    var submissionTag = '### Submissions:';
+    var startIndex = body.indexOf(submissionTag);
+    if(startIndex==-1){
+        guides.push('Ensure good test coverage on all modules');
+        guides.push('Upload documentation for how to run your submission');
+        guides.push('Upload all your source code as a zip for review');
+        guides.push('Winner will be required to submit a pull request with their winning code.');
+    }else{
+        var nextIndex = startIndex+submissionTag.length;
+        var endIndex = body.indexOf('###', nextIndex);
+        if(endIndex===-1){
+            guides.push(body.substring(nextIndex));
+        }else{
+            guides.push(body.substring(nextIndex, endIndex));
+        }
+    }
+    var repositoryTag = '### Repository:';
+    var repositoryStartIndex = body.indexOf(repositoryTag);
+    if(repositoryStartIndex!=-1){
+        guides.push('The repository for this challenge can be found [here](');
+        var repositoryNextIndex = repositoryStartIndex+repositoryTag.length;
+        var repositoryEndIndex = body.indexOf('###', repositoryNextIndex);
+        if(repositoryEndIndex===-1){
+            guides.push(body.substring(repositoryNextIndex));
+        }else{
+            guides.push(body.substring(repositoryNextIndex, repositoryEndIndex));
+        }
+
+        guides.push(')')
+    }
+    payload.submission =  md.render(guides.join('\n'));
+    
     payload.projectHeader.properties["Review Type"] = _.get(source, 'reviewType', 'COMMUNITY');
     payload.projectHeader.prizes = [];
 
@@ -149,8 +309,7 @@ var fMassageV3Payload = function(source, accessToken) {
 
 var fGetAccessToken = function(user, pass, cb) {
     console.log('posting in for accessToken at ', config.APIURL_BASE + config.APIURL_OAUTHACCESS);
-    request({
-            method: 'POST',
+    request.post({
             url: config.APIURL_BASE + config.APIURL_OAUTHACCESS,
             headers: {
                 'Content-Type': 'application/json',
@@ -172,8 +331,7 @@ var fCreateChallenges = function(accessToken, challengePayload, cb) {
         'x-auth-access-token': accessToken
     });
 
-    request({
-            method: 'POST',
+    request.post({
             url: config.APIURL_BASE + config.APIURL_CHALLENGE,
             headers: {
                 'Content-Type': 'application/json',
@@ -185,6 +343,46 @@ var fCreateChallenges = function(accessToken, challengePayload, cb) {
         cb);
 };
 
+var fPostChallenge = function(accessToken, payload, cb) {
+    console.log('sending over payload:', payload);
+
+    request({
+            method: 'POST',
+            url: config.APIURL_BASE + config.APIURL_CHALLENGE,
+            headers: {
+                'cache-control': 'no-cache',
+                'Content-Type': 'application/json',
+                'authorization': 'Bearer ' + accessToken
+            },
+            body: JSON.stringify(payload)
+        },
+        function(err, httpResponse, body) {
+            //console.log(httpResponse);
+            if (err) {
+                console.log(err);
+                cb(JSON.parse(body)); //CWD-- kick back err
+            } else {
+                console.log('challenge created ', body);
+
+                var challenge = {};
+
+                try {
+                    challenge = JSON.parse(body);
+                    challenge.challengeURL = config.TC_SITE + '/challenge-details/' + challenge.projectId +
+                        '/?type=develop&noncache=true'
+                } catch (e) {
+                    challenge = {
+                        'error': body
+                    };
+                }
+
+                console.log(challenge);
+                cb(null, challenge); //CWD-- kick back success
+            }
+        });
+
+};
+
 /* GET home page. */
 router.get('/', function(req, res, next) {
     res.render('index', {
@@ -193,13 +391,12 @@ router.get('/', function(req, res, next) {
 });
 
 router.get('/challenges-santosh', function(req, res, next) {
-    request({
-        method: 'GET',
+    request.get({
         url: config.APIURL_BASE + config.APIURL_CHALLENGE,
         headers: {
             'Content-Type': 'application/json',
-            'x-api-key': config.XAPIKEY,
-        },
+            'x-api-key': config.XAPIKEY
+        }
     }, function(err, httpResponse, body) {
         if (err) {
             console.log(err);
@@ -224,14 +421,12 @@ router.post('/', function(req, res, next) {
 
 router.post('/challenges-santosh', function(req, res, next) {
     console.log('posting to: ', config.APIURL_BASE + config.APIURL_CHALLENGE);
-    console.log(req.body);
+    console.log(req.get('content-type'));
     var accessToken = req.get('x-auth-access-token');
 
     var challengePayload = fMassagePayload(req.body);
-
     var cb = function(err, httpResponse, body) {
         if (err) {
-            console.log(err);
             res.status(500).json(body);
         } else {
             var challenge = {};
@@ -246,8 +441,6 @@ router.post('/challenges-santosh', function(req, res, next) {
                     'error': body
                 };
             }
-
-            console.log(challenge);
             res.json(challenge);
         }
     };
@@ -265,7 +458,6 @@ router.post('/challenges-santosh', function(req, res, next) {
                 console.log(err);
                 res.status(500).json(body);
             } else {
-                console.log(body);
                 accessToken = JSON.parse(body).x_auth_access_token;
                 console.log('I gots me an accessToken!', accessToken);
                 fCreateChallenges(accessToken, challengePayload, cb);
@@ -274,59 +466,37 @@ router.post('/challenges-santosh', function(req, res, next) {
     }
 });
 
-
-router.post('/challenges', function(req, res, next) {
+router.post('/challenges/:service?', function(req, res, next) {
     var accessToken = req.headers.authorization;
-
+    var svcName = _.get(req.params, 'service', 'github').toLowerCase();
+    console.log(req.params);
     if (accessToken) {
         accessToken = accessToken.replace('Bearer ', '');
         console.log('I gots me an accessToken!', accessToken);
-        var payload = fMassageV3Payload(req.body, accessToken);
-        console.log('sending over payload:', payload);
+        var payload = {};
 
-        request({
-                method: 'POST',
-                url: config.APIURL_BASE + config.APIURL_CHALLENGE,
-                headers: {
-                    'cache-control': 'no-cache',
-                    'Content-Type': 'application/json',
-                    'authorization': 'Bearer ' + accessToken
-                },
-                body: JSON.stringify(payload)
-            },
-            function(err, httpResponse, body) {
-                //console.log(httpResponse);
-                if (err) {
-                    console.log(err);
-                    res.status(500).json(JSON.parse(body));
-                } else {
-                    console.log('challenge created ', body);
+        if (svcName == 'gitlab') {
+            console.log('massaging payload for gitlab');
+            payload = fMassageV3PayloadGitlab(req.body, accessToken);
+        } else {
+            console.log('massaging payload for github');
+            payload = fMassageV3Payload(req.body, accessToken);
+        }
 
-                    var challenge = {};
-
-                    try {
-                        challenge = JSON.parse(body);
-                        challenge.challengeURL = config.TC_SITE + '/challenge-details/' + challenge.projectId +
-                            '/?type=develop&noncache=true'
-                    } catch (e) {
-                        challenge = {
-                            'error': body
-                        };
-                    }
-
-                    console.log(challenge);
-                    res.json(challenge);
-                }
-            });
+        fPostChallenge(accessToken, payload, function(errps, challenge) {
+            if (errps) {
+                res.status(500).json(errps);
+            } else {
+                res.json(challenge);
+            }
+        });
     } else {
         console.log('no accessToken present');
         res.status(500).json({
             err: 'no accessToken present'
         })
     }
-
 });
-
 
 router.post('/oauth/access_token', function(req, res, next) {
     console.log('sending over to ' + config.APIURL_BASE + config.APIURL_OAUTHACCESS, JSON.stringify(req.body));

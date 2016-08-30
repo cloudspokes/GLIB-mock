@@ -1,4 +1,5 @@
 var _ = require('lodash');
+var util = require('util');
 var express = require('express');
 var router = express.Router();
 var config = require('config');
@@ -6,7 +7,7 @@ var request = require('request');
 request.debug = true;
 var moment = require('moment');
 var MarkdownIt = require('markdown-it');
-var jwtDecode = require('jwt-decode')
+var jwtDecode = require('jwt-decode');
 var ChallengeObj = require('../model/Challenge.js')
 
 
@@ -81,41 +82,41 @@ var fMassageV3Payload = function(source, accessToken) {
     reqs += '\n\n#### Source: [Github Issue #' + source.number + '](' + source.html_url + ')';
     payload.projectHeader.projectSpec.detailedRequirements = md.render(reqs);
     payload.projectHeader.projectSpec.finalSubmissionGuidelines = md.render(_.get(source, 'submissionGuidelies',
-      payload.projectHeader.projectSpec.finalSubmissionGuidelines));
+        payload.projectHeader.projectSpec.finalSubmissionGuidelines));
     var guides = [];
 
     var body = _.get(source, 'body', '');
     var submissionTag = '### Submissions:';
     var startIndex = body.indexOf(submissionTag);
-    if(startIndex==-1){
+    if (startIndex == -1) {
         guides.push('Ensure good test coverage on all modules');
         guides.push('Upload documentation for how to run your submission');
         guides.push('Upload all your source code as a zip for review');
         guides.push('Winner will be required to submit a pull request with their winning code.');
-    }else{
-        var nextIndex = startIndex+submissionTag.length;
+    } else {
+        var nextIndex = startIndex + submissionTag.length;
         var endIndex = body.indexOf('###', nextIndex);
-        if(endIndex===-1){
+        if (endIndex === -1) {
             guides.push(body.substring(nextIndex));
-        }else{
+        } else {
             guides.push(body.substring(nextIndex, endIndex));
         }
     }
     var repositoryTag = '### Repository:';
     var repositoryStartIndex = body.indexOf(repositoryTag);
-    if(repositoryStartIndex!=-1){
+    if (repositoryStartIndex != -1) {
         guides.push('The repository for this challenge can be found [here](');
-        var repositoryNextIndex = repositoryStartIndex+repositoryTag.length;
+        var repositoryNextIndex = repositoryStartIndex + repositoryTag.length;
         var repositoryEndIndex = body.indexOf('###', repositoryNextIndex);
-        if(repositoryEndIndex===-1){
+        if (repositoryEndIndex === -1) {
             guides.push(body.substring(repositoryNextIndex));
-        }else{
+        } else {
             guides.push(body.substring(repositoryNextIndex, repositoryEndIndex));
         }
 
         guides.push(')')
     }
-    payload.submission =  md.render(guides.join('\n'));
+    payload.submission = md.render(guides.join('\n'));
 
     payload.projectHeader.properties["Review Type"] = _.get(source, 'reviewType', 'COMMUNITY');
     payload.projectHeader.prizes = [];
@@ -179,7 +180,128 @@ var fMassageV3Payload = function(source, accessToken) {
     }
 
     payload.projectHeader.tcDirectProjectName = payload.assetDTO.name = payload.projectHeader.properties[
-      "Project Name"] = title;
+        "Project Name"] = title;
+
+    return payload;
+};
+
+var fMassageV3PayloadCLI = function(source, accessToken) {
+    md = new MarkdownIt();
+    var title = _.get(source, 'title', '');
+    var payload = new ChallengeObj();
+    payload.jwtToken = accessToken;
+    var token = jwtDecode(accessToken);
+    console.log(token);
+    payload.projectHeader.properties.ChallengeOriginator = payload.projectHeader.properties.ChallengeOriginator +
+        'CLI';
+    payload.userId = _.get(token, 'userId', '');
+    payload.tcDirectProjectId = _.get(source, 'tcProjectId', (config.TC_ENV === 'dev') ? '10139' : '8905');
+    payload.contestCopilotName = 'Unassigned';
+    payload.hasMulti = false;
+    payload.specReviewStartMode = "now";
+    payload.projectHeader.tcDirectProjectId = payload.tcDirectProjectId;
+    var reqs = _.get(source, 'description', '');
+    reqs += '\n\n#### Source: GLIB CLI';
+    payload.projectHeader.projectSpec.detailedRequirements = md.render(reqs);
+    payload.projectHeader.projectSpec.finalSubmissionGuidelines = md.render(_.get(source, 'submissionGuidelines',
+        payload.projectHeader.projectSpec.finalSubmissionGuidelines));
+    var guides = [];
+    var body = _.get(source, 'description', '');
+    var submissionTag = '### Submissions:';
+    var startIndex = body.indexOf(submissionTag);
+    if (startIndex == -1) {
+        guides.push('Ensure good test coverage on all modules');
+        guides.push('Upload documentation for how to run your submission');
+        guides.push('Upload all your source code as a zip for review');
+        guides.push('Winner will be required to submit a pull request with their winning code.');
+    } else {
+        var nextIndex = startIndex + submissionTag.length;
+        var endIndex = body.indexOf('###', nextIndex);
+        if (endIndex === -1) {
+            guides.push(body.substring(nextIndex));
+        } else {
+            guides.push(body.substring(nextIndex, endIndex));
+        }
+    }
+    var repositoryTag = '### Repository:';
+    var repositoryStartIndex = body.indexOf(repositoryTag);
+    if (repositoryStartIndex != -1) {
+        guides.push('The repository for this challenge can be found [here](');
+        var repositoryNextIndex = repositoryStartIndex + repositoryTag.length;
+        var repositoryEndIndex = body.indexOf('###', repositoryNextIndex);
+        if (repositoryEndIndex === -1) {
+            guides.push(body.substring(repositoryNextIndex));
+        } else {
+            guides.push(body.substring(repositoryNextIndex, repositoryEndIndex));
+        }
+
+        guides.push(')')
+    }
+    payload.submission = md.render(guides.join('\n'));
+
+    payload.projectHeader.properties["Review Type"] = _.get(source, 'reviewType', 'COMMUNITY');
+    payload.projectHeader.prizes = [];
+
+
+    payload.assetDTO.productionDate = _.get(source, 'registrationStartDate', new Date());
+    payload.assetDTO.productionDate = moment(payload.assetDTO.productionDate).toISOString();
+    payload.endDate = _.get(source, 'registrationEndDate', new Date()); //": "2016-02-16T17:53:03+00:00",
+    payload.endDate = moment(payload.endDate).add(7, 'days').toISOString();
+    //CWD--
+
+    //Get prizes from title
+    try {
+        var re = /(\$[0-9]+)(?=.*\])/g;
+        var prizesFromTitle = [];
+
+        prizesFromTitle = title.match(re);
+        _.forEach(prizesFromTitle, function(prize, i) {
+            payload.projectHeader.prizes.push({
+                "place": i + 1,
+                "prizeAmount": parseInt(prize.replace('$', '')),
+                "prizeType": {
+                    "id": 15,
+                    "description": "Contest Prize"
+                },
+                "numberOfSubmissions": 1
+            });
+        });
+
+        title = title.replace(/^(\[.*\])/, '');
+        /*
+        DESIGN:DESIGN_FIRST_2_FINISH
+        DESIGN:WEB_DESIGNS
+        DESIGN:WIDGET_OR_MOBILE_SCREEN_DESIGN
+        DEVELOP:CODE
+        DEVELOP:FIRST_2_FINISH
+        */
+
+        payload.projectHeader.projectCategory = {
+            "id": 39, //CWD-- 38
+            "name": "CODE", //CWD-- First2Finish
+            "projectType": {
+                "id": 2,
+                "name": "Application"
+            }
+        };
+
+        if (payload.projectHeader.prizes.length === 1) {
+            //assume f2f with only 1
+            payload.projectHeader.projectCategory = {
+                "id": 38, //CWD-- 38
+                "name": "First2Finish", //CWD--
+                "projectType": {
+                    "id": 2,
+                    "name": "Application"
+                }
+            };
+        }
+    } catch (e) {
+        console.log(e);
+    }
+
+    payload.projectHeader.tcDirectProjectName = payload.assetDTO.name = payload.projectHeader.properties[
+        "Project Name"] = title;
 
     return payload;
 };
@@ -192,7 +314,7 @@ var fMassageV3PayloadGitlab = function(source, accessToken) {
     var token = jwtDecode(accessToken);
     console.log(token);
     payload.projectHeader.properties.ChallengeOriginator = payload.projectHeader.properties.ChallengeOriginator +
-      'Gitlab';
+        'Gitlab';
     payload.userId = token.userId;
     payload.tcDirectProjectId = _.get(source, 'tc_project_id', (config.TC_ENV === 'dev') ? '10139' : '8905');
     payload.contestCopilotName = 'Unassigned';
@@ -204,42 +326,42 @@ var fMassageV3PayloadGitlab = function(source, accessToken) {
         .iid + '](' + 'http://gitlab.com' + ')'; //CWD-- can't get from payload
     payload.projectHeader.projectSpec.detailedRequirements = md.render(reqs);
     payload.projectHeader.projectSpec.finalSubmissionGuidelines = md.render(_.get(source, 'submissionGuidelines',
-      payload.projectHeader.projectSpec.finalSubmissionGuidelines));
+        payload.projectHeader.projectSpec.finalSubmissionGuidelines));
     var guides = [];
 
     var body = _.get(source, 'body', '');
     var submissionTag = '### Submissions:';
     var startIndex = body.indexOf(submissionTag);
-    if(startIndex==-1){
+    if (startIndex == -1) {
         guides.push('Ensure good test coverage on all modules');
         guides.push('Upload documentation for how to run your submission');
         guides.push('Upload all your source code as a zip for review');
         guides.push('Winner will be required to submit a pull request with their winning code.');
-    }else{
-        var nextIndex = startIndex+submissionTag.length;
+    } else {
+        var nextIndex = startIndex + submissionTag.length;
         var endIndex = body.indexOf('###', nextIndex);
-        if(endIndex===-1){
+        if (endIndex === -1) {
             guides.push(body.substring(nextIndex));
-        }else{
+        } else {
             guides.push(body.substring(nextIndex, endIndex));
         }
     }
     var repositoryTag = '### Repository:';
     var repositoryStartIndex = body.indexOf(repositoryTag);
-    if(repositoryStartIndex!=-1){
+    if (repositoryStartIndex != -1) {
         guides.push('The repository for this challenge can be found [here](');
-        var repositoryNextIndex = repositoryStartIndex+repositoryTag.length;
+        var repositoryNextIndex = repositoryStartIndex + repositoryTag.length;
         var repositoryEndIndex = body.indexOf('###', repositoryNextIndex);
-        if(repositoryEndIndex===-1){
+        if (repositoryEndIndex === -1) {
             guides.push(body.substring(repositoryNextIndex));
-        }else{
+        } else {
             guides.push(body.substring(repositoryNextIndex, repositoryEndIndex));
         }
 
         guides.push(')')
     }
-    payload.submission =  md.render(guides.join('\n'));
-    
+    payload.submission = md.render(guides.join('\n'));
+
     payload.projectHeader.properties["Review Type"] = _.get(source, 'reviewType', 'COMMUNITY');
     payload.projectHeader.prizes = [];
 
@@ -344,7 +466,10 @@ var fCreateChallenges = function(accessToken, challengePayload, cb) {
 };
 
 var fPostChallenge = function(accessToken, payload, cb) {
-    console.log('sending over payload:', payload);
+    console.log('sending over payload:', util.inspect(payload, {
+        showHidden: false,
+        depth: null
+    }));
 
     request({
             method: 'POST',
@@ -478,6 +603,9 @@ router.post('/challenges/:service?', function(req, res, next) {
         if (svcName == 'gitlab') {
             console.log('massaging payload for gitlab');
             payload = fMassageV3PayloadGitlab(req.body, accessToken);
+        } else if (svcName == 'cli') {
+            console.log('massaging payload for cli');
+            payload = fMassageV3PayloadCLI(req.body, accessToken);
         } else {
             console.log('massaging payload for github');
             payload = fMassageV3Payload(req.body, accessToken);

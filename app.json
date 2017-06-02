@@ -4,19 +4,7 @@
   },
   "env": {
     "NODE_ENV": {
-      "required": true
-    },
-    "XAPIKEY": {
-      "required": true
-    },
-    "APIURL_BASE": {
-      "required": true
-    },
-    "APIURL_CHALLENGE": {
-      "required": true
-    },
-    "APIURL_OAUTHACCESS": {
-      "required": true
+      "required": false
     }
   },
   "addons": [

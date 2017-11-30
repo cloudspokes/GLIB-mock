@@ -20,8 +20,7 @@
     "config": "~1.19.0",
     "request": "2.74.0",
     "lodash": "latest",
-
-    "moment": "~2.15.2",
+    "moment": "~2.19.3",
     "markdown-it": "~6.0.0",
     "jwt-decode": "~2.0.1",
     "snyk": "^1.17.5"
